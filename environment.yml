@@ -1,0 +1,22 @@
+name: alignment
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pytorch
+  - pytorch-cuda=12.4
+  - numpy
+  - pip
+  - pip:
+      - transformers>=4.50.0
+      - accelerate>=1.5.2
+      - datasets>=3.0.0
+      - wandb>=0.26.0
+      - pytest>=8.3.5
+      # drgrpo_grader 的依赖：判分要用 sympy 解析 latex，antlr4 是 math-verify 的 parser 后端
+      - math-verify[antlr4-13-2]>=0.7.0
+      - pylatexenc>=2.10
+# vLLM 只在 Linux / WSL 可用，Windows 下装不上，因此不写在这里。
+# 需要时在目标机器上单独执行：pip install vllm

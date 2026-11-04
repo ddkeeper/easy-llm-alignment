@@ -1,0 +1,13 @@
+# 实验产物不入库（数据集 86 MB，随仓库提供）
+outputs/*
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# 实验记录与本地配置
+wandb/
+.vscode/
+tmp/
+.DS_Store

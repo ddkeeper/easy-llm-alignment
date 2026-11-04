@@ -1,0 +1,6 @@
+# 数据与 PDF 不做行尾转换，保证在不同平台上 clone 后字节一致
+**/data/** -text
+**/*.pdf -text
+
+# Notebook 统一 LF，避免不同平台改动时产生整文件 diff
+*.ipynb text eol=lf
