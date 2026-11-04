@@ -19,7 +19,7 @@ easy-llm-alignment/
 ├── scripts/                   # 讲解用代码
 │   └── prompting_baselines.py # 重构后的提示词基线，配合 2.4 讲解
 ├── notebooks/                 # 讲解 Notebook
-│   └── 2_prompting/           # 2.4 提示词基线实验
+│   └── 2_prompting/           # 提示词基线（2.2–2.4）
 ├── utils/                     # 公共模块，三层代码共用
 │   ├── drgrpo_grader.py       # 数学题答案判定（GSM8K 奖励函数）
 │   ├── vllm_utils.py          # 起 vLLM 服务、同步策略权重
