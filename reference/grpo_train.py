@@ -9,7 +9,7 @@ rollout 后端抽象（vllm / hf 两种）、指标与 rollout 落盘、wandb �
 
 两种后端：
   --backend vllm   Linux + GPU，真正用于实验。会拉起 vLLM 进程并用 NCCL 同步权重，
-                   因此训练进程和 vLLM 必须在同一台机器上（vllm_utils 里 pkill / killpg
+                   因此训练进程和 vLLM 必须在同一台机器上（utils/vllm_utils.py 里 pkill / killpg
                    是 POSIX 专用，Windows 上调用 VLLMServer.stop() 会 AttributeError）。
   --backend hf     本地 smoke test 用。直接用 HF 模型 .generate() 采样，不涉及 vLLM，
                    Windows 可跑。注意：它验证的是"流程能走通"，不是算法效果——
@@ -38,14 +38,14 @@ from typing import Callable, Iterator
 
 import torch
 
-# reference/ 放算法实现；公共模块（奖励函数、vLLM 封装、checkpoint）、提示词、数据、产物都在本章根目录
+# reference/ 放算法实现；公共模块在 utils/，提示词、数据、产物在仓库根目录
 _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parent
 sys.path.insert(0, str(_ROOT))
 
 from grpo import compute_pass_at_k, grpo_train_step
 from prompting_baselines import load_gsm8k
-from drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
+from utils.drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
 
 PROMPT_FILES = {
     "question_only": "question_only.prompt",
@@ -197,7 +197,7 @@ def make_reward_fn(mode: str) -> Callable[[str, str], dict[str, float]]:
 # =====================================================================
 @dataclass
 class Completion:
-    """与 vllm_utils.VLLMCompletion 同形，HF 后端也复用它，避免上层区分后端。"""
+    """与 utils.vllm_utils.VLLMCompletion 同形，HF 后端也复用它，避免上层区分后端。"""
     text: str
     token_ids: list[int]
     finish_reason: str | None
@@ -206,7 +206,7 @@ class Completion:
 class VLLMBackend:
     """vLLM 后端（Linux + GPU）。
 
-    - vllm_utils 只在实例化时 import，保证 Windows 上仅用 hf 后端时不会踩到 vllm。
+    - utils/vllm_utils.py 只在实例化时 import，保证 Windows 上仅用 hf 后端时不会踩到 vllm。
     - 批量请求依赖 vLLM 的 `index=len(choices)`（跨 batch 的扁平下标）：
       generate_completions 内部 `sorted(choices, key=index)` 后即得 prompt-major 顺序。
       旧版 vLLM 用的是组内下标（每个 prompt 从 0 重数），那时排序会交错 ——
@@ -216,7 +216,7 @@ class VLLMBackend:
     def __init__(self, model_id: str, host: str, port: int, gpu: int,
                  seed: int, launch_server: bool, request_batch_size: int,
                  gpu_memory_utilization: float = 0.9) -> None:
-        from vllm_utils import VLLMServer
+        from utils.vllm_utils import VLLMServer
 
         self.request_batch_size = request_batch_size
         self.server = VLLMServer(
@@ -894,9 +894,9 @@ def verify_rollout_order(args: argparse.Namespace) -> None:
     要区分的是两种语义：
       - index = i * n + j（全局扁平下标）→ choices 已按 prompt 分组，全局排序是空操作，可批量请求；
       - index = j（组内下标，每个 prompt 都从 0 重新数）→ 全局排序会把不同 prompt 交错。
-    这里直接打原始 HTTP，因为 vllm_utils.generate_completions 把 index 丢掉了。
+    这里直接打原始 HTTP，因为 utils/vllm_utils.py 的 generate_completions 把 index 丢掉了。
     """
-    from vllm_utils import VLLMServer, _http_json
+    from utils.vllm_utils import VLLMServer, _http_json
 
     server = VLLMServer(
         model_id=args.model_id, host=args.vllm_host, port=args.vllm_port,

@@ -31,13 +31,13 @@ import json
 import sys
 from pathlib import Path
 
-# reference/ 放算法实现；公共模块（奖励函数、vLLM 封装、checkpoint）、提示词、数据、产物都在本章根目录
+# reference/ 放算法实现；公共模块在 utils/，提示词、数据、产物在仓库根目录
 _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parent
 sys.path.insert(0, str(_ROOT))
 
-from drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
-from vllm_utils import VLLMServer
+from utils.drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
+from utils.vllm_utils import VLLMServer
 
 # ------------------------------- CONFIG -------------------------------
 MODEL_ID = "allenai/OLMo-2-0425-1B"

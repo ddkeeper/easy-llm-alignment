@@ -15,12 +15,12 @@ import json
 import sys
 from pathlib import Path
 
-# scripts/ 下要 import 本章顶层的公共模块（reward fn、vLLM 封装），把根目录加进搜索路径
+# 公共模块在根目录的 utils/ 下，加进搜索路径才 import 得到
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
-from vllm_utils import VLLMServer
+from utils.drgrpo_grader import question_only_reward_fn, r1_zero_reward_fn
+from utils.vllm_utils import VLLMServer
 
 # ---------------------------------- 配置 ----------------------------------
 MODEL_ID = "allenai/OLMo-2-0425-1B"
