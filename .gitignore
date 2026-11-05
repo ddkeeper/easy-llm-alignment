@@ -1,5 +1,22 @@
-# 实验产物不入库（数据集 86 MB，随仓库提供）
+# 实验产物不入库
 outputs/*
+
+# 自用内容：讲解配图、参考实现、写文档用的提示词
+assets/
+reference/
+docs/
+
+# 补充作业用的提示词
+prompts/safety/
+
+# 后续章节才用到的数据，讲到再补
+data/hh/
+data/mmlu/
+data/alpaca_eval/
+data/simple_safety_tests/
+
+# 补充作业的讲义（必选作业的 PDF 随仓库提供）
+cs336_assignment5_supplement_safety_rlhf.pdf
 
 # Python / Jupyter
 __pycache__/

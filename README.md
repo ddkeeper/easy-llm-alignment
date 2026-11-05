@@ -23,6 +23,7 @@ easy-llm-alignment/
 │   └── r1_zero_three_shot_gsm8k.prompt
 ├── data/
 │   └── gsm8k/                     # train.jsonl 7473 条 / test.jsonl 1319 条
+├── cs336_assignment5_alignment.pdf
 ├── environment.yml
 └── README.md
 ```
