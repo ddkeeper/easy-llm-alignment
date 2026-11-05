@@ -4,9 +4,9 @@ channels:
   - nvidia
   - conda-forge
 dependencies:
-  - python=3.12
-  - pytorch
-  - pytorch-cuda=12.4
+  - python=3.10
+  - pytorch=2.5.1
+  - pytorch-cuda=12.1
   - numpy
   - pip
   - pip:
@@ -18,5 +18,6 @@ dependencies:
       # utils/drgrpo_grader.py 的依赖：判分要用 sympy 解析 latex，antlr4 是 math-verify 的 parser 后端
       - math-verify[antlr4-13-2]>=0.7.0
       - pylatexenc>=2.10
-# vLLM 只在 Linux / WSL 可用，Windows 下装不上，因此不写在这里。
-# 需要时在目标机器上单独执行：pip install vllm
+# vLLM 只在 Linux / WSL 可用，且自身依赖固定版本 torch（0.19.1 要求 torch==2.10），
+# 与上面的 torch 2.5.1 冲突，因此单独建环境安装，不写在这里：
+#   conda create -n vllm python=3.12 -y && conda activate vllm && pip install vllm

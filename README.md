@@ -30,25 +30,17 @@ easy-llm-alignment/
 
 ## 环境配置
 
-基于 `environment.yml` 创建环境（Python 3.12）：
+与第一章共用同一个环境（Python 3.10 + PyTorch 2.5.1 + CUDA 12.1），已装过 [easy-llm](https://github.com/ddkeeper/easy-llm) 的直接激活：
+
+```bash
+conda activate nanogpt
+```
+
+新机器按 `environment.yml` 创建（依赖相同，环境名为 `alignment`，下文命令里的 `nanogpt` 换成它）：
 
 ```bash
 conda env create -f environment.yml
 conda activate alignment
-```
-
-已装过第一章 `easy-llm` 的，可以直接复用 `nanogpt` 环境（Python 3.10 + PyTorch 2.5），依赖已满足，下文命令里的 `alignment` 换成 `nanogpt` 即可。
-
-推理依赖 vLLM，仅支持 Linux / WSL2：
-
-```bash
-pip install vllm
-```
-
-国内网络建议先设置镜像：
-
-```bash
-export HF_ENDPOINT=https://hf-mirror.com
 ```
 
 ## 数据集
@@ -62,11 +54,18 @@ data/gsm8k/test.jsonl     1319 条
 
 ## vLLM 服务器启动
 
-推理通过独立的 vLLM 服务完成，Linux 与 WSL2 通用。
+vLLM 仅支持 Linux / WSL2，且 0.19.1 固定依赖 `torch==2.10`，与上面环境的 2.5.1 冲突，单独建一个环境：
 
 ```bash
-conda activate alignment
+# 1. 新建环境并安装 vLLM
+conda create -n vllm python=3.12 -y
+conda activate vllm
+pip install vllm
 
+# 2. 国内网络先设镜像，首次启动要从 HuggingFace 下权重
+export HF_ENDPOINT=https://hf-mirror.com
+
+# 3. 起服务，只监听回环供同机脚本调用
 vllm serve allenai/OLMo-2-0425-1B \
     --host 127.0.0.1 --port 8000 \
     --dtype bfloat16 \
@@ -97,7 +96,7 @@ vllm serve allenai/OLMo-2-0425-1B \
 vLLM 服务启动后，另开一个终端执行：
 
 ```bash
-conda activate alignment
+conda activate nanogpt
 python scripts/prompting_baselines.py
 ```
 
