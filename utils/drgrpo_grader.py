@@ -35,7 +35,32 @@ from sympy.parsing.latex import parse_latex
 from sympy.parsing.sympy_parser import parse_expr
 
 
+# ---------------------------------------------------------------------------
+# 打分流程速览
+#
+# 两个对外入口 r1_zero_reward_fn / question_only_reward_fn 都只做两件事：
+#   1. 格式闸门：能不能从输出里拿到一个可判等的答案字段
+#        r1_zero        要求同时出现 "</think> <answer>" 和 "</answer>"
+#        question_only  不要求格式，只在输出里找 \boxed{...}
+#   2. 判等：把抽出的答案和金标准交给 grade()，两层比对取并集
+#        mathd 层：字符串归一化后直接比（快，只认写法接近的答案）
+#        sympy 层：解析成表达式后判数学等价（慢，能容忍 1/2 与 0.5）
+#
+# 返回的三个键都只有 0.0 / 1.0：
+#   format_reward  格式闸门是否通过
+#   answer_reward  答案是否判对
+#   reward         总奖励，这里等于 answer_reward（不给 partial credit）
+#
+# 下面的函数按职责分四层，读的时候先看入口，再顺着调用往下看：
+#   抽取层   last_boxed_only_string / remove_boxed / extract_answer
+#   归一化层 mathd_normalize_answer / _strip_string / _normalize / normalize_final_answer
+#   判等层   grade_answer_mathd / grade_answer_sympy / is_latex_equal（math_verify 兜底）
+#   入口层   grade / r1_zero_reward_fn / question_only_reward_fn
+# ---------------------------------------------------------------------------
+
+
 # Dan Hendrycks' code
+# 第一层判等用的归一化入口：剥掉外层 \text{}，其余交给 _strip_string 做纯字符串清洗。
 def mathd_normalize_answer(answer: Optional[str]) -> Optional[str]:
     if answer is None:
         return None
@@ -190,6 +215,14 @@ unit_texts.extend([t + "s" for t in unit_texts])
 
 
 def _strip_string(string):
+    r"""把答案串压成可比较的字符串（纯字符串操作，不解析数学）。
+
+    依次做：统一 LaTeX 写法（tfrac/dfrac → frac、去掉 \left/\right、矩阵环境归一）、
+    去掉右侧单位（\text{...} 与 unit_texts 里的词）、去 \% 与 \$、去空格，
+    最后把 a/b 和 0.5 都改写成 \frac{}{} 的形式。
+    这样 "48\%" 与 "48"、"1/2" 与 "0.5" 才能撞上同一个串。
+    """
+
     def _fix_fracs(string):
         substrs = string.split("\\frac")
         new_str = substrs[0]
@@ -413,9 +446,12 @@ REMOVED_EXPRESSIONS = [
 
 
 def normalize_final_answer(final_answer: str) -> str:
-    """
+    r"""
     Normalize a final answer to a quantitative reasoning question.
     This code comes from https://arxiv.org/pdf/2206.14858.pdf, page18.
+
+    比 _strip_string 多管几种写法：\boxed / \textbf / \overline 外壳、$...$ 包裹、
+    \frac12 这类简写、逗号分位（100,000 → 100000）。math_verify 兜底前会先过它。
     """
     # final_answer = final_answer.split("=")[-1]
 
@@ -450,6 +486,12 @@ def normalize_final_answer(final_answer: str) -> str:
 
 
 def repeatness(s: str):
+    """重复度检测：把所有重复子串的总长度折算成占比，超过 0.2 就认为模型在复读。
+
+    用后缀数组 + LCP 算，只被 is_latex_equal 用来挡垃圾输入——
+    复读的长串丢给 sympy 会把 CPU 拖死。
+    """
+
     def ranks(l):
         index = {v: i for i, v in enumerate(sorted(set(l)))}
         return [index[v] for v in l]
@@ -493,6 +535,8 @@ def repeatness(s: str):
 
 
 class timeout:
+    """给解析加硬超时（SIGALRM）：畸形的 LaTeX 表达式可能让 sympy 卡很久。"""
+
     def __init__(self, seconds=1, error_message="Timeout"):
         self.seconds = seconds
         self.error_message = error_message
@@ -525,6 +569,10 @@ def numeric_equal(prediction: float, reference: float):
 
 
 def symbolic_equal(a, b):
+    """把两边都解析成 sympy 表达式，再按几种口径逐个试「是不是同一个东西」：
+    字面相等 → simplify(a-b)==0 → 方程两边差相等 → 数值近似相等 → 矩阵逐元素相等。
+    """
+
     def _parse(s):
         for f in [parse_latex, parse_expr, latex2sympy]:
             try:
@@ -581,6 +629,7 @@ def symbolic_equal(a, b):
 
 
 def _is_latex_equal(str1, str2):
+    # 先按原样解析比较；失败再归一化后比较；归一化后仍解析不了，就退回字符串相等。
     try:
         sym1, val1 = latex_eval(str1)
         sym2, val2 = latex_eval(str2)
@@ -601,6 +650,11 @@ def _is_latex_equal(str1, str2):
 
 
 def is_latex_equal(given_answer: str, ground_truth: str) -> bool:
+    """第三层兜底：交给 math_verify 解析比对，救回字符串和 sympy 都判错的等价写法。
+
+    带 1 秒硬超时；超过 128 字符且高度重复的串直接判错，不往下走。
+    只有 fast=False 才会调到这里（见 grade）。
+    """
     try:
         with timeout(1):
             try:
@@ -760,7 +814,11 @@ def _strip_properly_formatted_commas(expr: str):
 
 
 def _normalize(expr: str) -> str:
-    """Normalize answer expressions."""
+    """Normalize answer expressions.
+
+    sympy 判等前的归一化：去单位、去货币与百分号、million → *10^6、
+    小写、整数去掉 .0，最后清掉空格和残留花括号。
+    """
     if expr is None:
         return None
 
@@ -856,6 +914,7 @@ def should_allow_eval(expr: str):
 
 
 def are_equal_under_sympy(ground_truth_normalized: str, given_normalized: str):
+    # 判 (gt - given) 化简后是否为 0：能覆盖 1/2 与 0.5、2^3 与 8 这类写法差异。
     are_equal = False
     try:
         expr = f"({ground_truth_normalized})-({given_normalized})"
@@ -889,6 +948,8 @@ def split_tuple(expr: str):
 
 
 def last_boxed_only_string(string):
+    # 取最后一个 \boxed{...}：从 \boxed 起数花括号，回到第 0 层就结束，
+    # 所以 \boxed{\frac{1}{2}} 这种嵌套也能整段取出来。
     idx = string.rfind("\\boxed")
     if idx < 0:
         idx = string.rfind("\\fbox")
@@ -917,6 +978,7 @@ def last_boxed_only_string(string):
 
 
 def remove_boxed(s):
+    # 去掉外层 \boxed{ }，只留内容；形状不对就返回 None（上层据此判抽取失败）。
     left = "\\boxed{"
     try:
         assert s[: len(left)] == left
@@ -927,13 +989,23 @@ def remove_boxed(s):
 
 
 def extract_boxed_answer(solution: str) -> str:
-    """Extract the answer from inside a LaTeX \\boxed{} command"""
+    r"""Extract the answer from inside a LaTeX \boxed{} command
+
+    两步：先找出最后一个 \boxed{...}，再剥掉外层，得到纯答案串。
+    """
     solution = last_boxed_only_string(solution)
     solution = remove_boxed(solution)
     return solution
 
 
 def grade_answer_sympy(given_answer: str, ground_truth: str) -> bool:
+    """sympy 层判等：容忍写法差异，但整数和分数要求字面一致。
+
+    1. 两边 _normalize 后字符串相等 → 直接算对
+    2. 是 (1,2) 这种元组 / 区间 → 拆开逐元素比，元素个数和括号都得对上
+    3. 单个表达式 → 整数、分数先卡字面相等（防止 1/2 和 2/4 被 simplify 放过），
+       其余交给 are_equal_under_sympy
+    """
     ground_truth_normalized = _normalize(ground_truth)
     given_normalized = _normalize(given_answer)
 
@@ -974,6 +1046,7 @@ def grade_answer_sympy(given_answer: str, ground_truth: str) -> bool:
 
 
 def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
+    # mathd 层：纯字符串归一化后相等就算对。快，但只认写法接近的答案。
     ground_truth_normalized_mathd = mathd_normalize_answer(ground_truth)
     given_answer_normalized_mathd = mathd_normalize_answer(given_answer)
 
@@ -984,12 +1057,18 @@ def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
 
 
 def extract_answer(passage: str) -> str:
+    # 只有出现 \boxed 才尝试抽取；抽不到返回 None，调用方据此判格式失败。
     if "\\boxed" in passage:
         return extract_boxed_answer(passage)
     return None
 
 
 def grade(model_answer: str, gt_answer: str, fast: bool = True):
+    r"""两层判等取并集：mathd 字符串比 或 sympy 结构比，任一为真就算对。
+
+    fast=False 再加一层 math_verify（更宽松也更慢，用来复查漏判）。
+    金标准自带 \boxed{} 时先剥掉：GSM8K 是纯数字，MATH 那类会带盒子。
+    """
     if "\\boxed" in gt_answer:
         gt_answer = extract_answer(gt_answer)
     correct = grade_answer_mathd(model_answer, gt_answer) or grade_answer_sympy(
@@ -1006,9 +1085,20 @@ def grade(model_answer: str, gt_answer: str, fast: bool = True):
 
 
 def r1_zero_reward_fn(response, ground_truth, fast=True):
+    r"""r1_zero 系列模板的打分入口。
+
+    格式闸门很硬：必须同时出现 "</think> <answer>"（中间一个空格）和 "</answer>"，
+    少一个空格就整条判格式失败——模板本身也是要学的东西，这里不做宽容处理。
+
+    通过闸门后：format_reward = 1，从最后一个 <answer> 里取答案
+    （里面若包着 \boxed{} 再剥一层），交给 grade() 判对错。
+    三个键都只有 0.0 / 1.0，reward 等于 answer_reward，没有 partial credit。
+    """
     # We are strict about format to evaluate our models.
     if "</think> <answer>" in response and "</answer>" in response:
+        # 取最后一个 <answer>：模型有时在推理里先写一遍标签，最后一处才是最终答案
         model_answer = response.split("<answer>")[-1].replace("</answer>", "")
+        # 模板没要求 \boxed，但模型可能自己多包一层，剥掉再比
         if "\\boxed" in model_answer:
             model_answer = extract_answer(model_answer)
             if model_answer is None:
@@ -1022,6 +1112,7 @@ def r1_zero_reward_fn(response, ground_truth, fast=True):
         if isinstance(ground_truth, str):
             is_correct = grade(model_answer, ground_truth, fast)
         elif isinstance(ground_truth, list):
+            # 金标准可能是几个并列答案，任一命中就算对
             is_correct = False
             for gt in ground_truth:
                 is_correct |= grade(model_answer, gt, fast)
@@ -1039,7 +1130,7 @@ def r1_zero_reward_fn(response, ground_truth, fast=True):
                 "reward": 0.0
             }
     else:
-        # Unformatted.
+        # Unformatted. 连 "</think> <answer>" 都没出现，格式分和答案分一起归零。
         return {
             "format_reward": 0.0,
             "answer_reward": 0.0,
@@ -1048,8 +1139,14 @@ def r1_zero_reward_fn(response, ground_truth, fast=True):
 
 
 def question_only_reward_fn(response, ground_truth, fast=True):
+    r"""question_only 模板的打分入口：没有格式要求，只在输出里找 \boxed{...}。
+
+    找不到 boxed 就算格式失败——答案混在正文里，没法可靠判等；
+    找到之后和 r1_zero 走同一套 grade()，只是少了标签检查。
+    """
     model_answer = extract_answer(response)
     if model_answer is None:
+        # 输出里没有 \boxed{}，抽不出答案，格式分也拿不到。
         # Cannot even parse anything.
         return {
             "format_reward": 0.0,

@@ -41,8 +41,8 @@ SAMPLING = {
 STOP = {"stop": ["</answer>"], "include_stop_str_in_output": True}
 
 BATCH_SIZE = 64  # 每次 HTTP 请求塞多少条 prompt，只决定分块，不影响返回顺序
-NUM_EXAMPLES = None  # 调试时填个小数字；None = 跑完整测试集 1319 条
-REVIEW_LIMIT = 20  # review.md 里每类列多少条
+NUM_EXAMPLES = 4  # 调试时填个小数字；None = 跑完整测试集 1319 条
+REVIEW_LIMIT = 50  # review.md 里每类列多少条
 
 # 一个 mode 就三件事：用哪份模板、用哪个 reward fn、要不要停止串
 MODES = {
@@ -65,7 +65,7 @@ MODES = {
 
 DATA_DIR = _ROOT / "data" / "gsm8k"
 PROMPT_DIR = _ROOT / "prompts"
-OUTPUT_DIR = _ROOT / "outputs" / "prompting_baselines"
+OUTPUT_DIR = _ROOT / "outputs" / "prompting_baselines_try" # 结果输出的根目录
 # --------------------------------------------------------------------------
 
 
