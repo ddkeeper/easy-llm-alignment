@@ -30,15 +30,14 @@ easy-llm-alignment/
 
 ## 环境配置
 
-运行环境为 Python 3.12 + 较新的 PyTorch，与 [easy-llm](https://github.com/ddkeeper/easy-llm) 的环境不通用。
+基于 `environment.yml` 创建环境（Python 3.12）：
 
 ```bash
-# 1. 基于 environment.yml 创建环境
 conda env create -f environment.yml
-
-# 2. 激活环境
 conda activate alignment
 ```
+
+已装过第一章 `easy-llm` 的，可以直接复用 `nanogpt` 环境（Python 3.10 + PyTorch 2.5），依赖已满足，下文命令里的 `alignment` 换成 `nanogpt` 即可。
 
 推理依赖 vLLM，仅支持 Linux / WSL2：
 
