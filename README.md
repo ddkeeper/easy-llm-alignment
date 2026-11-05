@@ -37,7 +37,7 @@ conda env create -f environment.yml
 conda activate alignment
 ```
 
-推理走 vLLM，Windows 上装不上，只在 Linux / WSL 里装：
+推理另装 vLLM（原生 Windows 装不上，只能在 Linux / WSL2 里）：
 
 ```bash
 pip install vllm
@@ -58,12 +58,45 @@ data/gsm8k/train.jsonl    7473 条
 data/gsm8k/test.jsonl     1319 条
 ```
 
-## 运行
+## vLLM 服务器启动
 
-脚本自己拉起 vLLM 服务，三个提示词跑完再关掉，一条命令到底。先改脚本开头两个常量，否则它会去连一个已经跑着的服务，等十分钟才超时：
+推理走一个独立的 vLLM 服务。Linux 和 WSL2 用同一条命令：
+
+```bash
+conda activate alignment
+vllm serve allenai/OLMo-2-0425-1B \
+    --host 127.0.0.1 --port 8000 \
+    --dtype bfloat16 --enable-prefix-caching \
+    --gpu-memory-utilization 0.9 --seed 0
+```
+
+`--gpu-memory-utilization` 是这张卡最多占多少比例。卡上没有别人的任务就给 `0.9`；共享卡按空闲显存往下压（我们那张 24 GB 卡、邻居占七八 GB 时用 `0.6`）；WSL2 的 6 GB 单卡给 `0.8` 以下。给高了会直接报 `ValueError: Free memory ... is less than desired ...`。
+
+共享卡上还可能报 `Error in memory profiling`——邻居进程在启动期间释放了显存，vLLM 探测到"越用越多"。加上 `--kv-cache-memory-bytes 8589934592` 固定 KV 缓存大小，跳过探测。
+
+多卡机器在 `vllm serve` 前加 `CUDA_VISIBLE_DEVICES=<卡号>` 指定显卡。首次启动会从 HuggingFace 下载权重，缓存过之后可以设 `HF_HUB_OFFLINE=1` 跳过联网校验。
+
+## 实验
+
+提示词基线：三种模板（零样本 / 思维链 / 少样本）在 GSM8K 测试集 1319 题上各跑一遍，统计格式合格率、答案准确率、平均输出长度和截断数。两种跑法任选一种。
+
+### 方式一：服务起好了，另开终端跑脚本
+
+上一节的 `vllm serve` 留在终端里别关，新开一个：
+
+```bash
+conda activate alignment
+python scripts/prompting_baselines.py
+```
+
+脚本默认 `LAUNCH_SERVER = False`、`PORT = 8000`，直接连本机服务。要反复调脚本、改 `NUM_EXAMPLES` 试跑就用这个方式，模型只加载一次。
+
+### 方式二：脚本自己起服务
+
+改掉脚本开头两个常量，一条命令跑完：
 
 ```python
-LAUNCH_SERVER = True   # 脚本自己起 vLLM
+LAUNCH_SERVER = True   # 脚本自己拉起 vLLM
 GPU = 0                # 用哪张卡
 ```
 
@@ -72,28 +105,7 @@ conda activate alignment
 python scripts/prompting_baselines.py
 ```
 
-模型权重首次会自动从 HuggingFace 下载（国内先设 `HF_ENDPOINT`）；已经缓存过就加 `HF_HUB_OFFLINE=1`，跳过启动时的联网校验。
-
-### 共享卡或小显存卡：分两个终端跑
-
-卡上还有别人的任务时，一键模式过不去——`utils/vllm_utils.py` 里显存占比默认 0.9，vLLM 一启动就报 `ValueError: Free memory ... is less than desired ...`。这种情况手动起服务，把占比压到空闲显存以下：
-
-```bash
-# 终端 A：起服务
-conda activate alignment
-vllm serve allenai/OLMo-2-0425-1B \
-    --host 127.0.0.1 --port 8000 \
-    --dtype bfloat16 --enable-prefix-caching \
-    --gpu-memory-utilization 0.6 --seed 0
-```
-
-```bash
-# 终端 B：把 LAUNCH_SERVER 改回 False，脚本只连不启
-conda activate alignment
-python scripts/prompting_baselines.py
-```
-
-`0.6` 是按邻居占掉七八 GB 估的，按自己卡上实际空闲显存调；独占整卡可以直接给 `0.9`，WSL2 里 6 GB 的单卡给 `0.8` 以下。启动时报 `Error in memory profiling`（邻居进程在启动期间释放显存，vLLM 探测到"越用越多"），再加 `--kv-cache-memory-bytes 8589934592` 固定 KV 缓存大小。多卡机器在 `vllm serve` 前加 `CUDA_VISIBLE_DEVICES=<卡号>` 指定显卡。
+跑完脚本会把服务一起关掉。显存被邻居占着时这条路走不通（`utils/vllm_utils.py` 里占比默认 0.9，会直接报 `ValueError`），用方式一自己指定 `--gpu-memory-utilization`。
 
 结果写在 `outputs/prompting_baselines/<提示词名>/`：`summary.json` 是三类输出的汇总，`all.jsonl` 是逐条打分，`review.md` 列出答错的样本。
 
