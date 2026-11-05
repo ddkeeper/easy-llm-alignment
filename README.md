@@ -60,14 +60,44 @@ data/gsm8k/test.jsonl     1319 条
 
 ## 运行
 
+推理走一个独立的 vLLM 服务：先起服务，再跑脚本。
+
+### 服务器上跑（Linux + NVIDIA 卡）
+
 ```bash
 conda activate alignment
 
-# 三种提示词各跑一遍测试集
+# 终端 A：起服务，默认吃 90% 显存
+vllm serve allenai/OLMo-2-0425-1B \
+    --host 127.0.0.1 --port 8000 \
+    --dtype bfloat16 --enable-prefix-caching \
+    --gpu-memory-utilization 0.9 --seed 0
+```
+
+```bash
+# 终端 B：三种提示词各跑一遍测试集，1319 道题
+conda activate alignment
 python scripts/prompting_baselines.py
 ```
 
-脚本要连一个已经起好的 vLLM 服务，`LAUNCH_SERVER`、`HOST`、`PORT` 在文件开头。本机连服务器走 SSH 隧道、两端都在服务器、两端都在 WSL2 这三种跑法见 2.4 讲解。结果写到 `outputs/prompting_baselines/`。
+多卡机器在 `vllm serve` 前加 `CUDA_VISIBLE_DEVICES=<卡号>` 指定显卡。
+
+### WSL2 上跑（本机单卡）
+
+WSL2 里装好 vLLM 并 cd 到仓库目录，命令与上面相同，只把显存占比降到 `0.8`（6 GB 的卡要留点余量）：
+
+```bash
+vllm serve allenai/OLMo-2-0425-1B \
+    --host 127.0.0.1 --port 8000 \
+    --dtype bfloat16 --enable-prefix-caching \
+    --gpu-memory-utilization 0.8 --seed 0
+```
+
+首次启动会从 HuggingFace 下载模型权重，国内网络记得先设 `HF_ENDPOINT`。
+
+**显存报错时**：`ValueError: Free memory ... is less than desired ...` 说明卡上已经有别人的任务，把 `--gpu-memory-utilization` 压到空闲显存以下；报 `Error in memory profiling` 再加 `--kv-cache-memory-bytes 8589934592`，固定 KV 缓存大小。
+
+结果写在 `outputs/prompting_baselines/<提示词名>/`：`summary.json` 是三类输出的汇总，`all.jsonl` 是逐条打分，`review.md` 列出答错的样本。
 
 ## 参考资料
 
