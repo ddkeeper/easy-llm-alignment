@@ -19,7 +19,7 @@ easy-llm-alignment/
 
 ## 环境配置
 
-使用 [vLLM](https://github.com/vllm-project/vllm) 作为本项目的推理引擎，vLLM 需要跑在 Linux 或 WSL 上。模型训练与 vLLM 推理共用一套环境，conda 只负责创建 Python 环境，vLLM、PyTorch 等依赖都写在 `environment.yml` 的 `pip` 段，由 pip 安装。
+使用 [vLLM](https://github.com/vllm-project/vllm) 作为本项目的推理引擎，vLLM 需要跑在 Linux 或 WSL 上。模型训练与 vLLM 推理共用一套环境。
 
 ```bash
 conda env create -f environment.yml
@@ -58,8 +58,7 @@ python scripts/prompting_baselines.py
 | `--host` / `--port` | 服务监听的地址与端口，`0.0.0.0` 允许其他机器连接（需放行端口），`127.0.0.1` 仅本机；端口与脚本里的 `PORT` 一致 |
 | `--dtype bfloat16` | 以 bfloat16 加载权重，1B 模型约占 2 GB 显存 |
 | `--enable-prefix-caching` | 复用固定模板的 KV 缓存，减少重复计算 |
-| `--gpu-memory-utilization` | 显存占用上限：独占整卡取 `0.9`，共享卡按空闲显存下调，6 GB 单卡取 `0.8` 以下 |
-| `--seed 0` | 固定采样种子 |
+| `--gpu-memory-utilization` | 显存占用上限：独占整卡取 `0.9`，共享卡按空闲显存下调|
 
 客户端与服务端不在同一台机器时，把脚本开头的 `HOST` 改成服务端 IP。
 
