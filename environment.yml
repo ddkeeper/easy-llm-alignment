@@ -1,23 +1,22 @@
 name: alignment
 channels:
-  - pytorch
-  - nvidia
   - conda-forge
 dependencies:
-  - python=3.10
-  - pytorch=2.5.1
-  - pytorch-cuda=12.1
-  - numpy
+  - python=3.12
   - pip
   - pip:
+      # 推理：vLLM 会一并装上对应版本的 torch（0.19.1 要求 torch==2.10），
+      # 训练侧共用这一份，不再用 conda 装 pytorch
+      - vllm==0.19.1
+      # 训练：GRPO 用 HuggingFace 加载策略模型
       - transformers>=4.50.0
       - accelerate>=1.5.2
       - datasets>=3.0.0
       - wandb>=0.26.0
       - pytest>=8.3.5
-      # utils/drgrpo_grader.py 的依赖：判分要用 sympy 解析 latex，antlr4 是 math-verify 的 parser 后端
+      # 判分：math-verify 用 sympy 解析 latex，antlr4 是它的 parser 后端
       - math-verify[antlr4-13-2]>=0.7.0
       - pylatexenc>=2.10
-# vLLM 只在 Linux / WSL 可用，且自身依赖固定版本 torch（0.19.1 要求 torch==2.10），
-# 与上面的 torch 2.5.1 冲突，因此单独建环境安装，不写在这里：
-#   conda create -n vllm python=3.12 -y && conda activate vllm && pip install vllm
+      # 后续 GRPO 训练指定 flash_attention_2。官方没有 torch 2.10 的 wheel，
+      # 用社区构建的 cp312 包，仅 Linux x86_64 可用
+      - flash-attn @ https://github.com/lesj0610/flash-attention/releases/download/v2.8.3-cu12-torch2.10-cp312/flash_attn-2.8.3%2Bcu12torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl ; sys_platform == 'linux' and platform_machine == 'x86_64'

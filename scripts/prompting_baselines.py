@@ -7,7 +7,7 @@
     (0, 0) 格式就不对，压根没解析出答案
 后两类按分组写进 review.md，方便人工翻看「到底是真答错，还是没被解析出来」。
 
-vLLM 只能跑在 Linux / WSL，Windows 上要连远程服务，见 README「运行」。
+vLLM 只能跑在 Linux / WSL，Windows 上要连远程服务，见 README「实验」。
 运行（在仓库根目录下）：python scripts/prompting_baselines.py
 """
 
@@ -27,7 +27,7 @@ MODEL_ID = "allenai/OLMo-2-0425-1B"
 
 LAUNCH_SERVER = False  # True = 本机拉起 vLLM（仅 Linux）；False = 连已经跑着的服务
 HOST = "127.0.0.1"
-PORT = 8000  # vLLM 服务端口；本地走 SSH 隧道时改成隧道这头的端口（如 8001）
+PORT = 8000  # vLLM 服务端口，与启动命令里的 --port 一致；客户端跨机直连时填服务端的端口
 GPU = 0  # 只在 LAUNCH_SERVER=True 时生效
 
 SAMPLING = {

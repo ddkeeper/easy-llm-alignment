@@ -39,7 +39,7 @@ class VLLMServer:
 
     model_id: str
     host: str = "127.0.0.1"
-    port: int = 8000                      # 服务监听的端口；走 SSH 隧道时本地端口和它对不上
+    port: int = 8000                      # 服务监听的端口，与 vllm serve 的 --port 一致
     gpu: int = 1                          # 用哪张卡（写进 CUDA_VISIBLE_DEVICES），只在 launch_server=True 时生效
     seed: int = 0
     load_format: str = "auto"             # "auto" 加载真实权重；"dummy" 只起服务不加载，调通链路用
