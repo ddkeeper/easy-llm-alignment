@@ -45,8 +45,7 @@ vllm serve allenai/OLMo-2-0425-1B \
     --host 0.0.0.0 --port 8000 \
     --dtype bfloat16 \
     --enable-prefix-caching \
-    --gpu-memory-utilization 0.9 \
-    --seed 0
+    --gpu-memory-utilization 0.9
 
 # 客户端（同机的 WSL 或服务器，或者是本地 Windows）
 conda activate alignment
@@ -58,7 +57,7 @@ python scripts/prompting_baselines.py
 | `--host` / `--port` | 服务监听的地址与端口，`0.0.0.0` 允许其他机器连接（需放行端口），`127.0.0.1` 仅本机；端口与脚本里的 `PORT` 一致 |
 | `--dtype bfloat16` | 以 bfloat16 加载权重，1B 模型约占 2 GB 显存 |
 | `--enable-prefix-caching` | 复用固定模板的 KV 缓存，减少重复计算 |
-| `--gpu-memory-utilization` | 显存占用上限：独占整卡取 `0.9`，共享卡按空闲显存下调|
+| `--gpu-memory-utilization` | 显存占用上限：独占整卡取 `0.9`，共享卡按空闲显存下调 |
 
 客户端与服务端不在同一台机器时，把脚本开头的 `HOST` 改成服务端 IP。
 
